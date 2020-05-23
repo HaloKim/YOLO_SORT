@@ -3,10 +3,14 @@ import numpy as np
 import time
 import pandas as pd
 from sort import Sort
+
 #Load YOLO
 net = cv2.dnn.readNet("yolov3.weights","yolov3.cfg") # Original yolov3
+
 #net = cv2.dnn.readNet("yolov3-tiny.weights","yolov3-tiny.cfg") #Tiny Yolo
+
 classes = []
+
 with open("coco.names","r") as f:
     classes = [line.strip() for line in f.readlines()]
 
@@ -28,11 +32,7 @@ score = 0
 # Dataframe
 df1 = pd.DataFrame(columns=("time","label","index","confidences","x","y","w","h"))
 
-# SORT
-mot_tracker = '\0'
-def add_SORT():
-    return Sort()
-
+# coordinate to SORT bbox(x,y,s,r) -> x1,y1,x2,y2
 def convert_x_to_bbox(x,score=None):
   """
   Takes a bounding box in the centre form [x,y,s,r] and returns it in the form
@@ -45,8 +45,17 @@ def convert_x_to_bbox(x,score=None):
   else:
     return np.array([x[0]-w/2.,x[1]-h/2.,x[0]+w/2.,x[1]+h/2.,score]).reshape((1,5))
 
-mot_tracker = add_SORT()
-mot_tracker2 = add_SORT()
+# SORT Init
+mot_tracker = []
+mot_tracker.append(Sort())
+
+def add_SORT(obj):
+    if len(mot_tracker) < obj:
+        for i in range(obj):
+            mot_tracker.append(Sort())
+    return len(mot_tracker)
+
+# Loop the Frame
 while True:
     ret, frame = cap.read()
     frame_id += 1
@@ -65,12 +74,12 @@ while True:
     confidences = []
     boxes = []
 
-    # SORT
-    arg = []
-    xtb = []
-    trackers = []
-    sortxy = []
-    sortboxes = []
+    # SORT variables
+    sortxy = []  # x,y,s,r save
+    arg = [] # x,y,s,r save
+    xtb = [] # x to bbox
+    trackers = [] # SORT return values
+    sortboxes = [] # SORT rectangles coordinate
 
     for out in outs:
         for detection in out:
@@ -78,8 +87,10 @@ while True:
             class_id = np.argmax(scores)
             confidence = scores[class_id]
 
-            if confidence > 0.3 and str(classes[class_id]) == "bottle":
-            # if confidence > 0.3:
+            # Check confidence and Check class labels
+            if confidence > 0.3 and (str(classes[class_id]) == "bottle" or str(classes[class_id]) == "person"
+            or str(classes[class_id]) == "cell phone"):
+            #if confidence > 0.3:
                 # object detected
                 center_x = int(detection[0] * width)
                 center_y = int(detection[1] * height)
@@ -90,22 +101,20 @@ while True:
                 # rectangle coordinaters
                 x = int(center_x - w / 2)
                 y = int(center_y - h / 2)
-                # cv2.rectangle(img,(x,y),(x+w,y+h),(0,255,0),2)
 
                 boxes.append([x, y, w, h])  # put all rectangle areas
                 confidences.append(float(confidence))
+
                 # how confidence was that object detected and show that percentage
                 class_ids.append(class_id)  # name of the object tha was detected
                 sortxy.append([center_x, center_y, (w * h), (w / float(h))])
+                print(add_SORT(len(boxes)))
 
     # SORT Class
     for i in range(len(sortxy)):
         arg = sortxy[i][0], sortxy[i][1], sortxy[i][2], sortxy[i][3]
         xtb = convert_x_to_bbox(arg)
-        if i == 0:
-            trackers = mot_tracker.update(np.array(xtb))
-        elif i == 1:
-            trackers = mot_tracker2.update(np.array(xtb))
+        trackers = mot_tracker[i].update(np.array(xtb))
         sortboxes.append(trackers)
 
     indexes = cv2.dnn.NMSBoxes(boxes, confidences, 0.4, 0.6)
@@ -114,34 +123,41 @@ while True:
 
     for i in range(len(boxes)):
         if i in indexes:
-            # x, y, w, h = boxes[i]
             x, y, w, h = boxes[i]
             label = str(classes[class_ids[i]])
             label_lists.insert(i,label)
             confidence = confidences[i]
             color = colors[class_ids[i]]
+
+            # Draw Rectangles
             for d in sortboxes[i]:
-                print(d[4])
-                d = d.astype(np.int32)
+                d = d.astype(np.int32) # x,y,r,s
+
+                # YOLO Rectangle
                 cv2.rectangle(frame, (x, y), (x + w, y + h), color, 2)
                 cv2.putText(frame, label, (x + 100, y + 100), font, 1, (0, 0, 0), 2)
+
+                # SORT Rectangle
                 cv2.rectangle(frame, (d[0], d[1]), (d[2]+20, d[3]+20), (255, 255, 153), 2)
                 cv2.putText(frame, label + str(d[4]), (d[0]+((d[2]-d[0])/2), d[1]+((d[3]-d[1])/2)), font, 1, (255, 0, 255), 2)
 
+                # Time stamp
+                # timetmp = time.strftime('%Y-%m-%d', time.localtime(time.time()))
+                timetmp = time.strftime('%c', time.localtime(time.time()))
 
-            # Time stamp
-            # timetmp = time.strftime('%Y-%m-%d', time.localtime(time.time()))
-            timetmp = time.strftime('%c', time.localtime(time.time()))
-            # Make csv data
-            tmp = pd.Series\
-                ([timetmp,label,i,confidences[i],x,y,w,h],
-                 index = ["time","label","index","confidences","x","y","w","h"])
-            df1 = df1.append(tmp, ignore_index=True)
+                # Make csv data
+                tmp = pd.Series \
+                    ([timetmp, label, d[4], confidences[i], x, y, w, h],
+                     index=["time", "label", "index", "confidences", "x", "y", "w", "h"])
+                print(tmp)
+                df1 = df1.append(tmp, ignore_index=True)
 
+    # Write FPS value
     elapsed_time = time.time() - starting_time
     fps = frame_id / elapsed_time
-    cv2.putText(frame, "FPS:" + str(round(fps, 2)), (10, 50), font, 2, (0, 0, 0), 1) # FPS
+    cv2.putText(frame, "FPS:" + str(round(fps, 2)), (10, 50), font, 2, (255, 255, 153), 3) # FPS
 
+    # Show window
     frame = cv2.resize(frame,(640,480)) # resize frame
     cv2.imshow("Image", frame)
     key = cv2.waitKey(1)  # wait 1ms the loop will start again and we will process the next frame
