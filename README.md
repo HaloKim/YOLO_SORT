@@ -100,4 +100,7 @@ Below is the gist of how to instantiate and update SORT. See the ['__main__'](ht
     # track_bbs_ids is a np array where each row contains a valid bounding box and track_id (last column)
     ...
     
+### Realtime webcam tracker
+
+YOLO used for detection.
  
