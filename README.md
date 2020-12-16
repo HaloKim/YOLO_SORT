@@ -103,5 +103,5 @@ Below is the gist of how to instantiate and update SORT. See the ['__main__'](ht
 ### Realtime webcam tracker
 
 YOLO used for detection.
-<iframe width="560" height="315" src="https://www.youtube.com/embed/3FJ1O2jquMU" frameborder="0" gesture="media" allowfullscreen=""></iframe>
+<iframe width="560" height="315" src="https://www.youtube.com/embed/3FJ1O2jquMU" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
