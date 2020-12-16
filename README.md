@@ -103,4 +103,5 @@ Below is the gist of how to instantiate and update SORT. See the ['__main__'](ht
 ### Realtime webcam tracker
 
 YOLO used for detection.
-{% include youtube.html id="3FJ1O2jquMU" %}  
+
+[![Watch the video](https://img.youtube.com/vi/3FJ1O2jquMU/0.jpg)](https://www.youtube.com/watch?v=3FJ1O2jquMU)
